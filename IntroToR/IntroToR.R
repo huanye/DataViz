@@ -38,4 +38,23 @@ count(acc,RUR_URB)
 # is because acc2014 originally does not contain the 
 # column RUR_URB, and when it is combined with acc2015 
 # by row,  RUR_URB values are set to be NAs by default 
-# when they are added to those rows from dataset acc2014.  
+# when they are added to those rows from dataset acc2014.
+
+
+# merge on another data source
+fips = read_csv("fips.csv")
+glimpse(fips)
+
+# convert state and county variables in acc from integers
+# to characters
+acc = mutate(acc,STATE = as.character(STATE))
+acc = mutate(acc,COUNTY = as.character(COUNTY))
+# padding
+acc = mutate(acc,STATE = str_pad(STATE,2,"left","0"))
+acc = mutate(acc,COUNTY = str_pad(COUNTY,3,"left","0"))
+# rename
+acc= rename(acc,StateFIPSCode=STATE)
+acc = rename(acc,CountyFIPSCode=COUNTY)
+# merge 
+acc = left_join(acc,fips,by=c("StateFIPSCode","CountyFIPSCode"))
+
