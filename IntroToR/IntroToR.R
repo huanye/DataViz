@@ -58,3 +58,27 @@ acc <- rename(acc,CountyFIPSCode=COUNTY)
 # merge 
 acc <- left_join(acc,fips,by=c("StateFIPSCode","CountyFIPSCode"))
 
+# exploratory data analysis
+by_state_year <- group_by(acc,StateName,YEAR)
+agg <- summarise(by_state_year,TOTAL = sum(FATALS))
+agg_wide <- spread(agg,"YEAR",'TOTAL')
+agg_wide <- rename(agg_wide,Year2014=`2014`)
+agg_wide <- rename(agg_wide,Year2015=`2015`)
+agg <- mutate(agg_wide,Diff_Percent = (Year2015-Year2014)/Year2014)
+agg <- arrange(agg,Diff_Percent)
+agg <- filter(agg,Diff_Percent>0.15)
+agg <- filter(agg,!is.na(StateName))
+
+# rewrite the prior steps using dplyr's chain operator %>%
+agg <- acc %>%
+       group_by(StateName,YEAR) %>% 
+       summarise(TOTAL = sum(FATALS)) %>%
+       spread("YEAR",'TOTAL') %>%
+       rename(Year2014=`2014`) %>%
+       rename(Year2015=`2015`) %>%
+       mutate(Diff_Percent = (Year2015-Year2014)/Year2014) %>%
+       arrange(Diff_Percent)  %>%
+       filter(Diff_Percent>0.15) %>%
+       filter(!is.na(StateName))
+
+ glimpse(agg)
