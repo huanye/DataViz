@@ -8,7 +8,7 @@ output: pdf_document
 
 The dataset used here is H-1B Visa Petitions Data from year 2011 to year 2016, and it can be downloaded from https://www.kaggle.com/nsharan/h-1b-visa.
 
-```{r load libraries, echo=TRUE}
+```{r load libraries, echo=FALSE}
 library(readr)
 library(haven)
 library(dplyr)
@@ -19,14 +19,13 @@ library(maps)
 ```
 
 
-```{r read data, echo=TRUE}
+```{r read data, echo=FALSE}
 # It may take 2-3 minutes to read the csv file.
 h1b = read.csv("h1b_kaggle.csv",header = T,row.names=1)
 ```
 
 \pagebreak
-
-```{r barplot, echo=TRUE}
+```{r barplot, echo=FALSE}
 h1b %>%
   group_by(EMPLOYER_NAME) %>%
   summarise(NUMBER = n()) %>%
@@ -51,11 +50,11 @@ h1b %>%
 
 
 
-
-
 \pagebreak
 
-```{r map,echo=TRUE}
+
+
+```{r map,echo=FALSE}
 h1b%>%
   mutate(state = str_to_lower(str_extract(WORKSITE,'\\b[^,]+$')))%>%
   group_by(state)%>%
@@ -82,10 +81,10 @@ h1b%>%
 
 
 
-
 \pagebreak
 
-```{r lines, echo=TRUE}
+
+```{r lines, echo=FALSE}
 h1b%>%
   group_by(JOB_TITLE) %>%
   summarise(NUMBER = n()) %>%
@@ -101,7 +100,7 @@ h1b%>%
   annotate("text",x=2011.5,y=700000,label="As the thick blue regression line shows,\nthe prevailing wage level of the five most\nin-demand jobs went down during period\n2011-2016.",
 hjust=0,vjust=1,size=4,color="blue")+
   xlab("Year")+
-  ylab("Mean Wage")+
+  ylab("Mean Wage($)")+
   scale_y_continuous(labels = scales::comma)+
   ggtitle("Prevailing Wage Trends of the Five Most In-Demand Jobs\nfrom 2011 to 2016")+
   theme(plot.title=element_text(hjust= 0.5,size=12,face='bold'))+
