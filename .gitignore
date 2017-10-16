@@ -1,0 +1,3 @@
+# ignore all files with file extension of sas7bdat or csv
+*.sas7bdat
+*.csv
