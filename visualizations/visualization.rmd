@@ -1,0 +1,102 @@
+---
+title: "Visualizations"
+author: "Huanye Liu"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+```{r libraries,echo=TRUE}
+library(readr)
+library(haven)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(maps)
+library(viridis)
+library(ggrepel)
+```
+
+```{r readdata, echo=T}
+permVisa <- read_csv("us_perm_visas.csv")
+#delete unnecessary columns
+permVisa <- select(permVisa,application_type,case_no,case_status,class_of_admission,country_of_citzenship,decision_date,employer_address_1,employer_address_2,employer_city,employer_name,employer_postal_code,employer_state,job_info_work_city,job_info_work_state,naics_2007_us_code,naics_2007_us_title,pw_amount_9089,pw_job_title_9089,pw_level_9089,pw_soc_code,pw_soc_title,pw_source_name_9089,pw_unit_of_pay_9089,us_economic_sector,wage_offer_from_9089,wage_offer_unit_of_pay_9089)
+```
+Before U.S. employers can submit an immigration petition to the Department of Homeland Security's U.S. Citizenship and Immigration Services (USCIS), they must obtain a permanent labor certification issued by the Department of Labor (DOL) which allows an employer to hire a foreign worker to work permanently in the United States.
+
+```{r country of origin,fig.width=10,echo=T}
+permVisa %>%
+  filter(!is.na(country_of_citzenship))%>%
+  group_by(country_of_citzenship) %>%
+  summarise(NUMBER = n()) %>%
+  arrange(desc(NUMBER)) %>%
+  head(10)%>%
+  right_join(permVisa,by="country_of_citzenship")%>%
+  filter(!is.na(NUMBER))%>%
+  filter(case_status %in% c("Certified","Denied"))%>%
+  group_by(country_of_citzenship,case_status)%>%
+  summarize(N=n())%>%
+  ggplot(aes(x=factor(country_of_citzenship),y=N,fill=case_status))+
+  geom_bar(aes(x=reorder(country_of_citzenship,N)),stat = "identity",position = "identity",alpha=0.8)+
+  geom_text_repel(aes(label=N),size=3)+
+  scale_fill_manual(values = c("#FF9999","darkgray"))+
+  theme(axis.text.y = element_text(size=10),
+        axis.text.x = element_text(size=10),
+        axis.title = element_text(size=12),
+        plot.title= element_text(size=12),
+        legend.text = element_text(size=10),
+        legend.title = element_text(size=10))+
+  labs(title = "Case Status Distribution for Each of the Top 10 Countries with High US Permanent Visa Applications\n(aggegrated from 2011 to 2016)",
+       caption = "https://www.kaggle.com/jboysen/us-perm-visas/data",
+       x = "Country", y = "Number of Applications",
+       fill="Case Status")+
+  coord_flip()
+```
+        
+The graph above shows the case status distribution for each of the top 10 source countries of foreign workers' orgin. From the graph we can see that the number of applications for Indian workers is way more than numbers of applications for workers from other countries, which may be related to the fact that the three largest employers of foregin workers, Infosys, Tata and Wipro, all have the Indian origin. South Korean may be a surprise to get a higher rank than China in terms of the total number of applications filed by US employers, given a much smaller number of Korean students studying in the US than that of Chinese students. However, more applications for Korean workers are denied than those for Chinese workers too. In addition, more than half of the applications for workers from Mexico and Philippines have been denied, which are way higher than applications for workers from other countries in terms of the denied proportion. The reason behind may be related to the wage levels offered to foreign workers, and we can see the relationship on the next graph.    
+
+```{r geography,fig.width=10,echo=TRUE}
+permVisa %>%
+  filter(!is.na(country_of_citzenship))%>%
+  group_by(country_of_citzenship) %>%
+  summarise(NUMBER = n()) %>%
+  arrange(desc(NUMBER)) %>%
+  head(10)%>%
+  right_join(permVisa,by="country_of_citzenship")%>%
+  filter(!is.na(NUMBER))%>%
+  filter(case_status %in% c("Certified","Denied") & pw_unit_of_pay_9089 %in% c("Year",'yr') &!is.na(pw_amount_9089))%>%
+  mutate(is_certified = ifelse(case_status=='Certified',1,0))%>%
+  group_by(country_of_citzenship)%>%
+  summarise(median_wage=median(pw_amount_9089),certified_rate=mean(is_certified))%>%
+  mutate(country = str_to_title(country_of_citzenship))%>%
+  mutate(country=str_replace(country,"United Kingdom","UK"))%>%
+  right_join(map_data("world"),by=c("country"="region"))%>%
+  group_by(country)%>%
+  summarise(ave_long = mean(long),ave_lat=mean(lat),mwage = mean(median_wage,na.rm=T),c_rate = mean(certified_rate,na.rm=T))%>%
+  filter(!is.na(mwage))%>%
+  right_join(map_data("world"),by=c('country'='region'))%>%
+  mutate(country=str_replace(country,"South Korea","Korea"))%>%
+  ggplot()+
+  geom_polygon(aes(x=long,y=lat,group=group),fill="darkgrey")+
+  geom_point(aes(x=ave_long,y=ave_lat,size=mwage),na.rm=T,color="#FF9999")+
+  geom_text(aes(x=ave_long,y=ave_lat,label=country,color=c_rate,vjust=ifelse(country=="Korea",-1.5,0)),
+            check_overlap = F,size=4,na.rm=T,alpha=0.8,hjust=-0.1)+
+  theme_classic()+
+  theme(axis.line=element_blank(),
+        axis.text=element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        plot.title= element_text(size=12),
+        legend.text = element_text(size=9),
+        legend.title = element_text(size=11))+
+  labs(title = "The Wage Level and the Rate of Certified Applications are Positively Correlated \nas Shown by the Top 10 Countries with High US Permanent Visa Applications\n(aggegrated from 2011 to 2016)",
+       caption = "https://www.kaggle.com/jboysen/us-perm-visas/data",
+       color="Rate of Certified Applications",
+       size ="Median Wage")+
+  scale_color_viridis(option = "viridis")+
+  coord_quickmap()
+```
+        
+As we can see from graph above, Mexico and Philippines both get relatively low rates of certified applications, and workers from these two countries are also offered lower wages based on the median wage level. In constrast, applications for workers from Canada and UK are more likely to be certified, which is correlated with a relatively high wage level offered to workers from both countries. 
