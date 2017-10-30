@@ -84,7 +84,7 @@ perm<-permVisa %>%
        title="Wealthier countries have higher proportion of Permanent Visa Applicants with Doctor's Degree for working in the US",
        subtitle="as Shown by the Top 10 Countries with High US Permanent Visa Applications (2017)",
        
-       caption = "Data: https://www.foreignlaborcert.doleta.gov/pdf/PerformanceData/2017/PERM_Disclosure_Data_FY17.xlsx",
+       caption = "Data Source: Office of Foreign Labor Certificatio(OFLC), Employment & Training Administration of the U.S. Department of Labor",
        color="GDP per captial(thousand dollars)",
        size ="Proportion of Applicants with Doctorate Degree")
 
@@ -111,7 +111,7 @@ ggplot(perm,aes(x=X2016/1000,y=rDoc))+
        subtitle="as Shown by the Top 10 Countries with High US Permanent Visa Applications (2017)",
        x = "GDP per captial(thousand dollars)",
        y = "Proportion of Applicants with Doctorate Degree",
-       caption = "Data: https://www.foreignlaborcert.doleta.gov/pdf/PerformanceData/2017/PERM_Disclosure_Data_FY17.xlsx",
+       caption = "Data Source: Office of Foreign Labor Certificatio(OFLC), Employment & Training Administration of the U.S. Department of Labor",
        color="GDP per captial(thousand dollars)",
        size ="Proportion of Applicants with Doctorate Degree")
   
@@ -155,9 +155,9 @@ ggplot(WageDiff,aes(map_id=fname))+
         )+
   scale_fill_manual(values=c("coral4","coral2","coral","deepskyblue","deepskyblue3","deepskyblue4"),labels=c("(-15,-10]","(-10,-5]","(-5,-0]","(0,5]","(5,10]","(10,20]"),name="Wage Difference(thousand dollars) Interval")+
   labs(x = "", y = "",
-       title="Mean Wage Difference Between Wage Rates Proposed by H-1B Dependent Employers and by H-1B Independent Employers\n for H-1B Workers in Each State of the US(2017)",
+       title="H-1B Dependent Employers Proposed Lower Mean Wages than H-1B Independent Employers in Most States of the US(2017)",
        subtitle="\nWage Difference = Wage(H-1B Dependent Employers)-Wage(H-1B Independent Employers)",
-       caption="Data: https://www.foreignlaborcert.doleta.gov/pdf/PerformanceData/2017/H-1B_Disclosure_Data_FY17.xlsx")
+       caption="Data Source: Office of Foreign Labor Certificatio(OFLC), Employment & Training Administration of the U.S. Department of Labor")
   
 
   
