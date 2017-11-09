@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <script type="text/javascript" src="./d3/d3.min.js"></script>
+  <style>
+	  .high {
+		  
+		  fill:rgb(0,191,255);
+	  }
+	  .low {
+	  	  fill:rgb(135,206,250);
+	  }
+  </style>
+</head>
+
+<body>
+<svg></svg>
+<script type="text/javascript">
+	function draw(data){
+        var margin = 100;
+        var width = 600 - margin*2;
+        var height = 450 - margin*2;
+		
+	    var margin = {top: 100, right: 20, bottom: 30, left: 150},
+	    width = 600 - margin.left - margin.right,
+	    height = 450 - margin.top - margin.bottom;
+		
+	 
+	    var svg = d3.select("svg")
+		    .attr("width",width+margin.left+margin.right)
+		    .attr("height",height+margin.top+margin.bottom);
+			
+		// sort the data based on the bar frequency 	
+		data.sort(function(a, b) {return b.number-a.number;});
+		
+		var xScale = d3.scaleBand()
+		 .rangeRound([0, width])
+		 .padding(0.05)
+		 .domain(data.map(function(d) { return d.PW_LEVEL_9089; }));
+		 
+		 var yScale= d3.scaleLinear()
+		 .range([0,height])
+		 .domain([0, d3.max(data, function(d) { return d.number; })]);
+		 
+	     var xAxis = d3.axisTop(xScale);
+	     
+	     var yAxis = d3.axisLeft(yScale);
+	     
+		 // the inner frame for barplot 
+	     var inner= svg.append('g')
+	     .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')'); 
+		 
+		 var bar = inner.selectAll("g")
+		 .data(data)
+		 
+		 .enter().append("g")
+		 .attr("transform",function(d){return "translate("+xScale(d.PW_LEVEL_9089)+",0)"})
+		 
+		 
+		 bar.append("rect")
+         .attr("width",xScale.step()-1)
+		 .attr("height",function(d){return yScale(d.number)})
+		 .attr("class", function(d){
+			 if (d.number>30000){
+				 return "high";
+			 }
+			 else
+				 return "low";
+		 });
+		 
+		 inner.append("g").call(xAxis);
+         
+         inner.append("g").call(yAxis);
+	     
+		 
+		 
+	
+	     
+	     
+		 
+	}
+    
+	
+	 
+	 d3.json("data.json",function(error,data){
+ 		if(error){
+ 			 console.log(error);
+ 		 }
+ 		 else{
+ 	 		data.number = +data.number; // coerce to number
+ 	 		draw(data);
+ 		 }
+	 });
+</script>
+</body>
+</html>
