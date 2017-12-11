@@ -1,20 +1,17 @@
 ---
 title: "GeoVis"
 author: "Huanye Liu"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r library, echo=T}
+```{r library, include = F,cache=F,echo=F}
 library(readr)
 library(haven)
 library(dplyr)
@@ -23,6 +20,7 @@ library(stringr)
 library(ggplot2)
 library(fiftystater)
 library(viridis)
+library(maps)
 # create sf objects from shape files
 library(sf)
 library(rvest)
@@ -31,10 +29,13 @@ library(ggrepel)
 ```
 
 
-```{r readfile and preprocessing, echo=T}
+```{r readfile and preprocessing, include = F,cache=F,echo=F}
 # use library sf instead of sp to read in world map shape files.
 world<-st_read("cshapes/cshapes.shp")%>%
   mutate(CNTRY_NAME=as.character(CNTRY_NAME))
+
+h1b = read.csv("h1b_kaggle.csv",header = T,row.names=1)
+H1B = read_csv("h1b.csv")
 GDP_perCap <- read.csv("GDP_perCap.csv",header = T)%>%
   tbl_df()%>%
   mutate(Country.Name=as.character(Country.Name))
@@ -42,15 +43,17 @@ visa <- read.csv("PERM_Disclosure_Data_FY17.csv",header = T)
 permVisa <- visa%>%
   tbl_df()%>%
   select(COUNTRY_OF_CITIZENSHIP,FOREIGN_WORKER_INFO_EDUCATION,EMPLOYER_YR_ESTAB,DECISION_DATE,EMPLOYER_NUM_EMPLOYEES)
+
+
 ```
 
-```{r data, echo=T}
+```{r data, include = F,cache=F,echo=F}
 perm<-permVisa %>%
   filter(!is.na(COUNTRY_OF_CITIZENSHIP))%>%
   group_by(COUNTRY_OF_CITIZENSHIP) %>%
   summarise(NUMBER = n()) %>%
   arrange(desc(NUMBER)) %>%
-  head(10)%>%
+  head(20)%>%
   right_join(permVisa,by="COUNTRY_OF_CITIZENSHIP")%>%
   filter(!is.na(NUMBER))%>%
   mutate(COUNTRY_OF_CITIZENSHIP=str_to_title(COUNTRY_OF_CITIZENSHIP))%>%
@@ -65,14 +68,14 @@ perm<-permVisa %>%
   slice(1)
 ```
   
-```{r top10,fig.width=8, echo=T}
+```{r top10,fig.width=10, echo=F}
   ggplot(world)+
     geom_sf(fill="azure3",color='lightgrey')+
     theme_void()+
-    geom_point(data = perm,aes(x=CAPLONG,y=CAPLAT,color=as.numeric(X2016)/1000,size=rDoc))+
-    geom_text(data = perm, aes(x=CAPLONG,y=CAPLAT,color=as.numeric(X2016)/1000,vjust=-rDoc*15,hjust=-rDoc*3,label=COUNTRY_OF_CITIZENSHIP),size=3)+
+    geom_point(data = perm,aes(x=CAPLONG,y=CAPLAT,color=as.numeric(X2016)/1000,size=rDoc),alpha=0.5)+
+    geom_text_repel(data = perm, aes(x=CAPLONG,y=CAPLAT,label=COUNTRY_OF_CITIZENSHIP),size=3)+
    
-    scale_size(range = c(0, 10))+
+    scale_size(range = c(5, 15))+
     theme(
          plot.title= element_text(size=11),
          plot.subtitle = element_text(size=9),
@@ -81,46 +84,25 @@ perm<-permVisa %>%
         legend.title = element_text(size=9),
         legend.position="bottom")+
   labs(
-       title="Wealthier countries have higher proportion of Permanent Visa Applicants with Doctor's Degree for working in the US",
-       subtitle="as Shown by the Top 10 Countries with High US Permanent Visa Applications (2017)",
+       title="Wealthier countries have higher proportion of Permanent Visa applicants with Doctorate Degree for working in the US",
+       subtitle="as shown by the top 20 countries with high US Permanent Visa applications (2017)",
        
        caption = "Data Source: Office of Foreign Labor Certificatio(OFLC), Employment & Training Administration of the U.S. Department of Labor",
        color="GDP per captial(thousand dollars)",
        size ="Proportion of Applicants with Doctorate Degree")
 
-```
 
-```{r point,fig.width=8, echo=T}
-ggplot(perm,aes(x=X2016/1000,y=rDoc))+
-  geom_point(aes(size=rDoc,color=X2016/1000))+
-  geom_text_repel(aes(label=COUNTRY_OF_CITIZENSHIP,color=X2016/1000))+
-  geom_smooth(method='lm',se = F)+
-  geom_point(color="red",x=15.534702,y=0.118563292,size=5)+
-  ylim(0,0.125)+
-  xlim(0,50)+
-  theme(
-         plot.title= element_text(size=11),
-         plot.subtitle = element_text(size=9),
-         plot.caption = element_text(size=8),
-         axis.title  = element_text(size=10),
-         legend.text = element_text(size=7),
-         legend.title = element_text(size=9),
-         legend.position = "bottom")+
-  labs(
-       title="The Exceptional High Proportion of Permanent Visa Applicants with Doctor's Degree from China",
-       subtitle="as Shown by the Top 10 Countries with High US Permanent Visa Applications (2017)",
-       x = "GDP per captial(thousand dollars)",
-       y = "Proportion of Applicants with Doctorate Degree",
-       caption = "Data Source: Office of Foreign Labor Certificatio(OFLC), Employment & Training Administration of the U.S. Department of Labor",
-       color="GDP per captial(thousand dollars)",
-       size ="Proportion of Applicants with Doctorate Degree")
-  
 ```
-```{r readdata,echo=T}
-h1b = read_csv("h1b.csv")
+            
+              
+\pagebreak 
+                
+              
+```{r readdata,include = F,cache=F,echo=F}
+H1B = read_csv("h1b.csv")
 ```
-```{r usmap,fig.width=8.5,echo=T}
-WageDiff<-h1b%>%
+```{r usmap,fig.width=8.5,echo=F}
+WageDiff<-H1B%>%
   tbl_df()%>%
   select(SOC_CODE,H1B_DEPENDENT,WORKSITE_STATE,WAGE_RATE_OF_PAY_FROM,WAGE_UNIT_OF_PAY)%>%
   filter(!is.na(SOC_CODE)&!is.na(H1B_DEPENDENT)&WAGE_UNIT_OF_PAY=='Year')%>%
@@ -135,7 +117,8 @@ WageDiff<-h1b%>%
   left_join(bind_cols(fname=state.name,abbname=state.abb),by=c("WORKSITE_STATE"="abbname"))%>%
   select(fname,AvePremium)%>%
   mutate(fname=str_to_lower(fname))%>%
-  mutate(AvePremium=cut(AvePremium,c(-15000,-10000,-5000,0,5000,10000,20000)))
+  mutate(AvePremium=AvePremium/1000)%>%
+  mutate(AvePremium=cut(AvePremium,c(-15,-10,-5,0,5,10,20)))
   
   
 data("fifty_states")
@@ -146,20 +129,27 @@ ggplot(WageDiff,aes(map_id=fname))+
   coord_map()+
   scale_x_continuous(breaks = NULL) + 
   scale_y_continuous(breaks = NULL) +
+  theme_void()+
   theme(plot.title= element_text(size=10),
         plot.subtitle = element_text(size=8),
         plot.caption = element_text(size=8),
         legend.text = element_text(size=7),
         legend.title = element_text(size=8),
-        panel.background = element_blank()
+        legend.position = c(1,0),
+        legend.justification = c(1,0)
         )+
-  scale_fill_manual(values=c("coral4","coral2","coral","deepskyblue","deepskyblue3","deepskyblue4"),labels=c("(-15,-10]","(-10,-5]","(-5,-0]","(0,5]","(5,10]","(10,20]"),name="Wage Difference(thousand dollars) Interval")+
+  scale_fill_brewer(palette =  'RdBu')+
   labs(x = "", y = "",
-       title="H-1B Dependent Employers Proposed Lower Mean Wages than H-1B Independent Employers in Most States of the US(2017)",
-       subtitle="\nWage Difference = Wage(H-1B Dependent Employers)-Wage(H-1B Independent Employers)",
+       fill = "wage difference\n(thousand) interval",
+       title="H1B Dependent employers proposed lower mean wages than H1B Independent employers in most states of the US (2017)",
+       subtitle="\nwage difference = wage(H1B Dependent employers)-wage(H1B Independent employers)",
        caption="Data Source: Office of Foreign Labor Certificatio(OFLC), Employment & Training Administration of the U.S. Department of Labor")
   
 
   
   
 ```
+
+
+
+
