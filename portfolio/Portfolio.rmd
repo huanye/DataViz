@@ -1,0 +1,370 @@
+---
+title: "Static Graphs"
+author: "Huanye Liu"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r load libraries,include = F,cache=F, echo=F}
+library(readr)
+library(haven)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(fiftystater)
+library(viridis)
+library(maps)
+library(sf)
+library(rvest)
+library(devtools)
+library(ggrepel)
+```
+
+```{r readfile,include = F,cache=F, echo=F}
+world<-st_read("cshapes/cshapes.shp")%>%
+  mutate(CNTRY_NAME=as.character(CNTRY_NAME))
+h1b = read.csv("h1b_kaggle.csv",header = T,row.names=1)
+H1B = read_csv("h1b.csv")
+GDP_perCap <- read.csv("GDP_perCap.csv",header = T)%>%
+  tbl_df()%>%
+  mutate(Country.Name=as.character(Country.Name))
+visa <- read.csv("PERM_Disclosure_Data_FY17.csv",header = T)
+permVisa <- visa%>%
+  tbl_df()%>%
+  select(COUNTRY_OF_CITIZENSHIP,FOREIGN_WORKER_INFO_EDUCATION,EMPLOYER_YR_ESTAB,DECISION_DATE,EMPLOYER_NUM_EMPLOYEES)
+
+```
+
+```{r theme, include = F,cache=F,echo=F}
+the_theme = theme(
+                  #plot.background = element_rect(color="grey50",size=5),
+                  panel.background = element_rect(size=2),
+                  plot.title= element_text(size=15,vjust=3),
+                  plot.subtitle = element_text(size = 13,vjust=2),
+                  axis.title.x.bottom = element_text(size=13,margin = margin(t=20,r=0,b=20,l=0)),
+                  axis.title.y.left = element_text(size=15,margin = margin(t=0,r=30,b=0,l=20)),
+                  axis.text = element_text(size=14),
+                  legend.title = element_text(size=12,vjust=1,margin = margin(10,10,10,10)), 
+                  legend.text = element_text(size=11,margin = margin(10,10,10,10)),
+                  legend.position = "top")
+```
+
+
+
+                    
+
+# 1        
+```{r bar, fig.width=12,fig.height=10,breakline=T,echo=F}
+h1b%>%
+  group_by(YEAR,CASE_STATUS)%>%
+  summarize(number=n())%>%
+  filter(CASE_STATUS %in% c("CERTIFIED","DENIED"))%>%
+  mutate(CASE_STATUS = str_to_lower(CASE_STATUS))%>%
+  ggplot(aes(x=YEAR,y=number/1000,fill=CASE_STATUS))+
+  geom_bar(position="identity",stat="identity",na.rm = T,alpha=0.6)+
+  geom_text(aes(label=number,color = CASE_STATUS),vjust = -0.5,show.legend = F)+
+  scale_color_manual(values = c(certified ="#4682b4",denied="#E74C3C"))+
+  scale_fill_manual(values = c(certified ="#4682b4",denied="#E74C3C"))+
+  scale_x_continuous(breaks=c(2011:2016))+
+  scale_y_continuous(breaks=100*c(0:6))+
+  the_theme+
+  labs(title = "Steady increase in certified applications for H1B petition with moderate decrease in denied ones from 2011 to 2016\n",
+       caption = "Data Source: Employment & Training Administration of the U.S. Department of Labor\n\n\n\n\n",
+       x = "year", 
+       y = "number of applications (thousand)",
+       fill="case status")
+```
+                           
+                                
+                                     
+            
+                   
+# 2                           
+```{r barplot,fig.width=12,fig.height=10, echo=F}
+
+scaleFun = function(x)str_extract(x,'[^\\s]+')
+
+h1B_data = h1b %>%
+  group_by(EMPLOYER_NAME) %>%
+  summarise(NUMBER = n()) %>%
+  arrange(desc(NUMBER)) %>%
+  head(10)%>%
+  right_join(h1b,by="EMPLOYER_NAME")%>%
+  filter(!is.na(NUMBER))%>%
+  mutate(EMPLOYER_NAME = str_extract(EMPLOYER_NAME,'[^\\s]+'))%>%
+  mutate(EMPLOYER_NAME = str_replace(EMPLOYER_NAME,'ERNST',"E&Y"))%>%
+  group_by(EMPLOYER_NAME,YEAR)%>%
+  summarise(N = n())%>%
+  mutate(YEAR=factor(YEAR))%>%
+  mutate(indian=ifelse(EMPLOYER_NAME%in%c("TATA","WIPRO","HCL","INFOSYS"),"Yes","No"))
+  
+ggplot(h1B_data,aes(x=reorder(paste(EMPLOYER_NAME,YEAR),rank(N)),y=N/1000)) +
+  geom_bar(stat = "identity",aes(fill= indian),alpha=0.6) +
+  scale_fill_manual(values=c(Yes="#E74C3C",No="#4682b4"))+
+  scale_x_discrete(labels = scaleFun)+
+  labs(x ="employer",
+       y= "number of applications (thousand)",
+      fill = "Indian company",
+      title = "Indian technology companies ranked highly among the largest 10 H1B employers from 2011 to 2016\n",
+      caption = "Data Source: Employment & Training Administration of the U.S. Department of Labor\n\n\n\n\n")+
+  the_theme+
+  coord_flip()+
+  facet_wrap(~YEAR,ncol=2, scale="free")
+```
+                                   
+                         
+                         
+            
+            
+# 3                                        
+```{r boxplot, fig.width=12,fig.height=10,echo=F}
+
+h1b%>%
+  mutate(EMPLOYER = str_extract(EMPLOYER_NAME,'^[^ ]+'))%>%
+  filter(EMPLOYER %in% c("GOOGLE","FACEBOOK","AMAZON","LINKEDIN","MICROSOFT","IBM","WIPRO",
+                         "TATA","INFOSYS","DELOITTE") & !is.na(PREVAILING_WAGE))%>%
+  mutate(hightech = ifelse(EMPLOYER %in% c("GOOGLE","FACEBOOK","AMAZON","LINKEDIN","MICROSOFT"),"FLAG+Microsoft","largest H1B employers"))%>%
+  ggplot(aes(x=factor(EMPLOYER),y=PREVAILING_WAGE/1000),na.rm=T)+
+  geom_boxplot(aes(x=reorder(EMPLOYER,PREVAILING_WAGE,median),fill = hightech),na.rm = T,show.legend = T,alpha=0.5)+
+  scale_fill_manual(values = c("FLAG+Microsoft" = "#E74C3C","largest H1B employers"="#4682b4"))+
+  scale_y_continuous(labels=scales::comma,limits = c(0,250),breaks = 50*c(0:6))+
+  the_theme+
+  labs(title = "Median wages offered by the 5 high-tech companies all exceed those of the 5 largest H1B employers (2011-2016)\n",
+       caption = "Data Source: Employment & Training Administration of the U.S. Department of Labor\n\n\n\n\n", 
+       x = "employer", y = "prevailing wage (thousand dollars)",
+       fill = "")+
+  theme(axis.text = element_text(size=11),
+        axis.title.y.left = element_text(margin = margin(t=0,r=10,b=0,l=5)))+
+  coord_flip()
+  
+
+```
+                
+                      
+                        
+                
+                 
+#  4                                                                              
+```{r wage1, fig.width = 12, fig.height=13,echo=F}
+industry_code = c("54","51","31","56","62","61","52","44","42","23","72","92")
+industry_name =c(
+            	"Professional and Technical Services",
+               "information",
+               "Manufacturing",
+               "Administrative and Support",
+               "Health Care and Social Assistance",
+               "Educational Services",
+               "Finance and Insurance",
+               "Retail Trade",
+               "Wholesale Trade",
+               "Construction",
+               "Accommodation and Food Services",
+               "Public Administration"
+)
+industry_df = bind_cols(code = industry_code,name = industry_name)
+H1B%>%
+  filter(!is.na(H1B_DEPENDENT) & WAGE_UNIT_OF_PAY=='Year' & !is.na(WAGE_RATE_OF_PAY_FROM)) %>%
+  mutate(industry=str_sub(as.character(NAICS_CODE),1,2))%>%
+  mutate(industry=ifelse(industry%in%c("31","32","33"),"31",industry))%>%
+  mutate(industry=ifelse(industry%in%c("44","45"),"44",industry))%>%
+  mutate(industry=ifelse(industry%in%c("48","49"),"48",industry))%>%
+  filter(industry %in% industry_code)%>%
+  left_join(industry_df,by=c("industry"="code"))%>%
+  mutate(H1B_DEPENDENT = ifelse(H1B_DEPENDENT=="Y","yes","no"))%>%
+  rename(`H1B dependent` = H1B_DEPENDENT)%>%
+  ggplot(aes(WAGE_RATE_OF_PAY_FROM/1000))+
+  geom_density(aes(fill=`H1B dependent`,color=`H1B dependent`),alpha = 0.2,na.rm=T)+
+  scale_color_manual(values = c(no ="#4682b4",yes="#E74C3C"))+
+  scale_fill_manual(values = c(no ="#4682b4",yes="#E74C3C"))+
+  the_theme+
+  theme(legend.position = "top")+
+  labs(
+    x = "wage rate (thousand dollars)",
+    caption = "Data Source: Employment & Training Administration of the U.S. Department of Labor\n\n\n\n\n",
+    title = "Wages proposed by H1B dependent and independent employers from 12 industries in 2017"
+  )+
+  xlim(0,400)+
+  facet_wrap(~name,ncol = 3,scale = "free")
+```
+                   
+                      
+                        
+#   5                                                                                                                     
+```{r wage2, out.height= 5,fig.width = 12, fig.height=15,echo=F}
+industry_code = c("54","51","31","56","62","61","52","44","42","23","72","92")
+industry_name =c(
+            	"Professional and Technical Services",
+               "information",
+               "Manufacturing",
+               "Administrative and Support",
+               "Health Care and Social Assistance",
+               "Educational Services",
+               "Finance and Insurance",
+               "Retail Trade",
+               "Wholesale Trade",
+               "Construction",
+               "Accommodation and Food Services",
+               "Public Administration"
+)
+industry_df = bind_cols(code = industry_code,name = industry_name)
+H1B%>%
+  filter(!is.na(H1B_DEPENDENT) & WAGE_UNIT_OF_PAY=='Year' & !is.na(PREVAILING_WAGE)&!is.na(WAGE_RATE_OF_PAY_FROM)) %>%
+  mutate(industry=str_sub(as.character(NAICS_CODE),1,2))%>%
+  mutate(industry=ifelse(industry%in%c("31","32","33"),"31",industry))%>%
+  mutate(industry=ifelse(industry%in%c("44","45"),"44",industry))%>%
+  mutate(industry=ifelse(industry%in%c("48","49"),"48",industry))%>%
+  filter(industry %in% industry_code)%>%
+  left_join(industry_df,by=c("industry"="code"))%>%
+  mutate(H1B_DEPENDENT = ifelse(H1B_DEPENDENT=="Y","yes","no"))%>%
+  mutate(wage_diff = WAGE_RATE_OF_PAY_FROM-PREVAILING_WAGE) %>%
+  filter(!wage_diff==0)%>%
+  ggplot(aes(x=H1B_DEPENDENT,y=wage_diff/1000))+
+  geom_violin(aes(fill=H1B_DEPENDENT,color=H1B_DEPENDENT),alpha = 0.2,na.rm=T,show.legend = F)+
+  scale_color_manual(values = c(no ="#4682b4",yes="#E74C3C"))+
+  scale_fill_manual(values = c(no ="#4682b4",yes="#E74C3C"))+
+  the_theme+
+  labs(
+    x = "H1B dependent or not",
+    y = "wage premium (thousand dollars)",
+    title = "Wage premiums proposed by H1B dependent and independent employers from 12 industries in 2017",
+    subtitle = "wage premium = wage proposed by the employer - prevailing wage\n",
+    caption = "Data Source: Employment & Training Administration of the U.S. Department of Labor"
+  )+
+  ylim(-100,250)+
+  facet_wrap(~name,ncol = 3,scale = "free")
+```
+
+
+         
+             
+                               
+#  6
+```{r line, fig.width=11,fig.height=9, echo=F}
+h1b%>%
+  group_by(JOB_TITLE) %>%
+  summarise(NUMBER = n()) %>%
+  arrange(desc(NUMBER)) %>%
+  head(5)%>%
+  right_join(h1b,by="JOB_TITLE")%>%
+  filter(!is.na(NUMBER))%>%
+  group_by(JOB_TITLE,YEAR)%>%
+  summarise(mean_wage_year=mean(PREVAILING_WAGE,na.rm=TRUE))%>%
+  ggplot(aes(YEAR,mean_wage_year/1000))+
+  geom_line(aes(group = JOB_TITLE),color = "gray",na.rm=TRUE)+
+  geom_point(aes(color = JOB_TITLE),size = 6)+
+  geom_rect(xmin=2014,xmax=2015,ymin=0,ymax=750000,fill='#E74C3C',alpha=0.01)+
+  scale_y_continuous(labels = scales::comma)+
+  labs(title = "A universal prevailing wage decrease from 2014 to 2015 over all five most in-demand jobs for H1B visa applicants\n",
+       caption = "Data Source: Employment & Training Administration of the U.S. Department of Labor\n\n\n\n\n", 
+       x = "year", 
+       y = "mean wage (thousand dollars)",
+       color = "JOB TITLE")+
+  the_theme+
+  theme(legend.position = "top",
+        legend.text = element_text(size=9,margin=margin(0,0,1,0)),
+        legend.title = element_text(size=11,vjust=0,margin=margin(0,0,1,0)),
+        axis.title.x.bottom  = element_text(size=12,margin = margin(t=0,r=0,b=10,l=0)),
+        axis.title.y.left  = element_text(size=12,margin = margin(t=0,r=20,b=0,l=10)),
+        plot.title= element_text(size=14))+
+  scale_color_brewer(palette = 'Set3')
+
+
+```
+
+
+
+              
+#   7
+              
+            
+             
+                                  
+```{r point,fig.height=8, fig.width=11, echo=F}
+
+perm<-permVisa %>%
+  filter(!is.na(COUNTRY_OF_CITIZENSHIP))%>%
+  group_by(COUNTRY_OF_CITIZENSHIP) %>%
+  summarise(NUMBER = n()) %>%
+  arrange(desc(NUMBER)) %>%
+  head(10)%>%
+  right_join(permVisa,by="COUNTRY_OF_CITIZENSHIP")%>%
+  filter(!is.na(NUMBER))%>%
+  mutate(COUNTRY_OF_CITIZENSHIP=str_to_title(COUNTRY_OF_CITIZENSHIP))%>%
+  left_join(GDP_perCap,by=c("COUNTRY_OF_CITIZENSHIP"="Country.Name"))%>%
+  filter(!is.na(FOREIGN_WORKER_INFO_EDUCATION))%>%
+  mutate(isSmall = ifelse(FOREIGN_WORKER_INFO_EDUCATION=='Doctorate',1,0))%>%
+  group_by(COUNTRY_OF_CITIZENSHIP,X2016)%>%
+  summarise(rDoc = mean(isSmall))%>%
+  left_join(world,by=c("COUNTRY_OF_CITIZENSHIP"="CNTRY_NAME"))%>%
+  distinct(COUNTRY_OF_CITIZENSHIP,X2016,rDoc,CAPLONG,CAPLAT)%>%
+  slice(1)
+
+ggplot(perm,aes(x=X2016/1000,y=rDoc))+
+  geom_point(aes(size=rDoc,color=X2016/1000),na.rm = T,alpha=0.6)+
+  #geom_point(color="red",x=15.534702,y=0.118563292,size=14)+
+  geom_text_repel(aes(label=COUNTRY_OF_CITIZENSHIP),na.rm = T)+
+  geom_smooth(method='lm',se = F,na.rm = T)+
+#  scale_color_viridis(option = "magma")+
+  ylim(0,0.125)+
+  xlim(0,50)+
+  the_theme+
+  theme(
+         plot.title= element_text(size=14),
+         plot.subtitle = element_text(size=11),
+         plot.caption = element_text(size=10),
+         axis.title.x.bottom  = element_text(size=12,margin = margin(t=10,r=0,b=0,l=0)),
+        axis.title.y.left  = element_text(size=12,margin = margin(t=0,r=20,b=0,l=10)),
+         legend.text = element_text(size=9),
+         legend.title = element_text(size=11),
+         legend.position = "bottom"
+)+
+  labs(
+       title="The exceptionally high proportion of Permanent Visa applicants with Doctorate Degree from China in 2017",
+       subtitle="as Shown by the top 10 Countries with high US Permanent Visa applications\n",
+       x = "GDP per captial (thousand dollars)",
+       y = "proportion of applicants with Doctorate Degree",
+       caption = "Data Source: Employment & Training Administration of the U.S. Department of Labor",
+       color="GDP per captial\n(thousand dollars)",
+       size ="proportion of applicants with Doctorate Degree")+
+  scale_color_viridis(option = "magma")+
+scale_size(range = c(0, 25))
+  
+```
+              
+              
+# 8
+               
+           
+```{r map2, fig.width=10,fig.height=8,echo=F}
+wage = h1b%>%
+  mutate(state = str_to_lower(str_extract(WORKSITE,'\\b[^,]+$')))%>%
+  group_by(state)%>%
+  summarise(median_wage = median(PREVAILING_WAGE,na.rm=T))%>%
+#  right_join(map_data("state")[1:5],by=c("state"="region"))%>%
+   mutate(state = str_to_title(state))%>%
+  left_join(bind_cols(fname=state.name,abbname=state.abb,xcenter=state.center$x,
+                      ycenter=state.center$y),by=c("state"="fname"))%>%
+  mutate(state = str_to_lower(state))
+  data("fifty_states")
+
+  ggplot(wage,aes(map_id=state))+
+  geom_map(map=fifty_states,aes(fill=median_wage/1000))+
+  expand_limits(x = fifty_states$long, y = fifty_states$lat) +
+  geom_text(aes(x=ifelse(abbname=="AK",-117,xcenter),y=ifelse(abbname=="AK",28,ycenter),label=ifelse(abbname=="HI","",abbname)),color = 'black',na.rm=TRUE,size=4,vjust=1)+
+  geom_text(x=-103.8,y=25.5,label="HI",color = 'black',na.rm=TRUE,
+            size=4,vjust=1)+
+  theme_void()+
+  theme(
+        plot.title= element_text(size=14),
+        legend.text = element_text(size=10),
+        legend.title = element_text(size=11),
+        legend.position = c(1,0),
+        legend.justification = c(1,0))+
+  labs( title = "West coast employers offered higher median wages for H1B visa applicants (2011-2016)\n",
+        fill = "median wage\n(thousand dollars)",
+        caption = "Data Source: Employment & Training Administration of the U.S. Department of Labor")+
+    scale_fill_viridis(option = "magma")+
+  coord_quickmap()
+```
