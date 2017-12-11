@@ -20,7 +20,8 @@ library(ggrepel)
 ```
 ```{r theme, include = F,cache=F,echo=F}
 the_theme = theme(
-                  #plot.background = element_rect(color="grey50",size=5),
+                  panel.grid.major = element_line(color="white"),
+                  panel.grid.minor = element_line(color="white"),
                   panel.background = element_rect(size=2),
                   plot.title= element_text(size=15,vjust=3),
                   plot.subtitle = element_text(size = 13,vjust=2),
