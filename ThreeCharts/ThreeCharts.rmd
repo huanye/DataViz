@@ -1,50 +1,122 @@
 ---
 title: "Three Charts"
 author: "Huanye Liu"
-output: pdf_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 
-
-The dataset used here is H-1B Visa Petitions Data from year 2011 to year 2016, and it can be downloaded from https://www.kaggle.com/nsharan/h-1b-visa.
-
-```{r load libraries, echo=FALSE}
+```{r load libraries, include = F,cache=F,echo=F}
 library(readr)
 library(haven)
 library(dplyr)
 library(tidyr)
 library(stringr)
 library(ggplot2)
+library(fiftystater)
+library(viridis)
 library(maps)
+# create sf objects from shape files
+library(sf)
+library(rvest)
+library(devtools)
+library(ggrepel)
 ```
 
 
-```{r read data, echo=FALSE}
+```{r read data, include = F,cache=F,echo=F}
 # It may take 2-3 minutes to read the csv file.
 h1b = read.csv("h1b_kaggle.csv",header = T,row.names=1)
 ```
 
-\pagebreak
-```{r barplot, echo=FALSE}
-h1b %>%
+```{r readfile and preprocessing, include = F,cache=F,echo=F}
+# use library sf instead of sp to read in world map shape files.
+world<-st_read("cshapes/cshapes.shp")%>%
+  mutate(CNTRY_NAME=as.character(CNTRY_NAME))
+H1B = read_csv("h1b.csv")
+GDP_perCap <- read.csv("GDP_perCap.csv",header = T)%>%
+  tbl_df()%>%
+  mutate(Country.Name=as.character(Country.Name))
+visa <- read.csv("PERM_Disclosure_Data_FY17.csv",header = T)
+permVisa <- visa%>%
+  tbl_df()%>%
+  select(COUNTRY_OF_CITIZENSHIP,FOREIGN_WORKER_INFO_EDUCATION,EMPLOYER_YR_ESTAB,DECISION_DATE,EMPLOYER_NUM_EMPLOYEES)
+
+```
+
+```{r data, include = F,cache=F,echo=F}
+perm<-permVisa %>%
+  filter(!is.na(COUNTRY_OF_CITIZENSHIP))%>%
+  group_by(COUNTRY_OF_CITIZENSHIP) %>%
+  summarise(NUMBER = n()) %>%
+  arrange(desc(NUMBER)) %>%
+  head(10)%>%
+  right_join(permVisa,by="COUNTRY_OF_CITIZENSHIP")%>%
+  filter(!is.na(NUMBER))%>%
+  mutate(COUNTRY_OF_CITIZENSHIP=str_to_title(COUNTRY_OF_CITIZENSHIP))%>%
+  left_join(GDP_perCap,by=c("COUNTRY_OF_CITIZENSHIP"="Country.Name"))%>%
+  filter(!is.na(FOREIGN_WORKER_INFO_EDUCATION))%>%
+  mutate(isSmall = ifelse(FOREIGN_WORKER_INFO_EDUCATION=='Doctorate',1,0))%>%
+  group_by(COUNTRY_OF_CITIZENSHIP,X2016)%>%
+  summarise(rDoc = mean(isSmall))%>%
+  left_join(world,by=c("COUNTRY_OF_CITIZENSHIP"="CNTRY_NAME"))%>%
+  distinct(COUNTRY_OF_CITIZENSHIP,X2016,rDoc,CAPLONG,CAPLAT)%>%
+  # delete the first row of another capital of Brazil to keep one row for each country
+  slice(1)
+```
+
+
+
+```{r barplot,fig.height=7, echo=F}
+
+scaleFun = function(x)str_extract(x,'[^\\s]+')
+
+h1B_data = h1b %>%
   group_by(EMPLOYER_NAME) %>%
   summarise(NUMBER = n()) %>%
   arrange(desc(NUMBER)) %>%
   head(10)%>%
   right_join(h1b,by="EMPLOYER_NAME")%>%
   filter(!is.na(NUMBER))%>%
+  mutate(EMPLOYER_NAME = str_extract(EMPLOYER_NAME,'[^\\s]+'))%>%
+  mutate(EMPLOYER_NAME = str_replace(EMPLOYER_NAME,'ERNST',"E&Y"))%>%
   group_by(EMPLOYER_NAME,YEAR)%>%
   summarise(N = n())%>%
   mutate(YEAR=factor(YEAR))%>%
-  ggplot(aes(x=reorder(EMPLOYER_NAME,N),y=N,fill=YEAR)) +
-  geom_bar(stat = "identity") +
-  xlab("Employer Name")  +
-  ylab("Number of Petitions") +
-  ylim(0,150000) +
-  ggtitle("Number of H1B Petitions Filed by Each of Top 10 H1B Employers\n(2011--2016)")+
-  theme(axis.text.y = element_text(color='black',face='bold',size=6),
-        plot.title=element_text(hjust= 0.5,size=10,face='bold'))+
-  coord_flip()
+  mutate(indian=ifelse(EMPLOYER_NAME %in% c("TATA","WIPRO","HCL","INFOSYS"),"Yes","No"))
+
+  
+
+  ggplot(h1B_data,aes(x=reorder(paste(EMPLOYER_NAME,YEAR),rank(N)),y=N/1000)) +
+  geom_bar(stat = "identity",aes(fill= indian),show.legend = T,alpha = 0.6) +
+  scale_fill_manual(values=c(Yes="#E74C3C",
+                    No="#4682b4"))+
+  scale_color_manual(values=c(TATA="#E74C3C",
+                    WIPRO="#E74C3C",
+                    INFOSYS="#E74C3C",
+                    HCL="#E74C3C",
+                    MICROSOFT="#4682b4",
+                    `E&Y`="#4682b4",
+                    IBM="#4682b4",
+                    ACCENTURE="#4682b4",
+                    DELOITTE="#4682b4",
+                    COGNIZANT="#4682b4"))+
+  labs(x ="employer",
+       y= "number of applcations(thousand)",
+       fill = "Indian company")+
+  ggtitle("Indian technology companies ranked highly among top 10 H1B employers from 2011 to 2016\n")+
+  theme(axis.text= element_text(size=8),
+        plot.title=element_text(hjust= 0,size=9),
+        legend.position = "top",
+        legend.title = element_text(size=7),
+        legend.text = element_text(size=7))+
+  scale_x_discrete(labels = scaleFun)+
+  coord_flip()+
+  facet_wrap(~YEAR,ncol=2, scale="free")
+  
+  
+  
 ```
 
 
@@ -54,57 +126,95 @@ h1b %>%
 
 
 
-```{r map,echo=FALSE}
-h1b%>%
-  mutate(state = str_to_lower(str_extract(WORKSITE,'\\b[^,]+$')))%>%
-  group_by(state)%>%
-  summarise(number = n(),ave_long = mean(lon,na.rm=TRUE),ave_lat=mean(lat,na.rm=TRUE))%>%
-  right_join(map_data("state")[1:5],by=c("state"="region"))%>%
-  ggplot()+
-  geom_polygon(aes(long,lat,group = state,fill=number))+
-  scale_fill_gradient(name="Number of Petitions",
-                      breaks = c(100000, 200000, 300000,400000,500000), 
-                      labels = c("100000", "200000", "300000","400000","500000"))+
-  geom_text(aes(x=ave_long,y=ave_lat,label=state),na.rm=TRUE,
-            check_overlap = T,size=2.2,color='red')+
-  theme(legend.title = element_text(size = 8),legend.text = element_text(size = 6),
-        plot.title=element_text(hjust= 0.5,size=10,face='bold'))+
-  xlab("longitude")+
-  ylab("latitude")+
-  ggtitle("Geographic Distribution of Total Number of H1B Petitions by State\n")+
-  coord_quickmap()
-```
+```{r point,fig.height = 6, fig.width=8, echo=F}
 
-
-
-
-
-
-
-\pagebreak
-
-
-```{r lines, echo=FALSE}
-h1b%>%
-  group_by(JOB_TITLE) %>%
+perm<-permVisa %>%
+  filter(!is.na(COUNTRY_OF_CITIZENSHIP))%>%
+  group_by(COUNTRY_OF_CITIZENSHIP) %>%
   summarise(NUMBER = n()) %>%
   arrange(desc(NUMBER)) %>%
-  head(5)%>%
-  right_join(h1b,by="JOB_TITLE")%>%
+  head(10)%>%
+  right_join(permVisa,by="COUNTRY_OF_CITIZENSHIP")%>%
   filter(!is.na(NUMBER))%>%
-  group_by(JOB_TITLE,YEAR)%>%
-  summarise(mean_wage_year=mean(PREVAILING_WAGE,na.rm=TRUE))%>%
-  ggplot(aes(YEAR,mean_wage_year))+
-  geom_line(aes(color = JOB_TITLE),na.rm=TRUE)+
-  geom_smooth(method="lm",size=2,se=FALSE,na.rm=TRUE)+
-  annotate("text",x=2011.5,y=700000,label="As the thick blue regression line shows,\nthe prevailing wage level of the five most\nin-demand jobs went down during period\n2011-2016.",
-hjust=0,vjust=1,size=4,color="blue")+
-  xlab("Year")+
-  ylab("Mean Wage($)")+
-  scale_y_continuous(labels = scales::comma)+
-  ggtitle("Prevailing Wage Trends of the Five Most In-Demand Jobs\nfrom 2011 to 2016")+
-  theme(plot.title=element_text(hjust= 0.5,size=12,face='bold'))+
-  guides(color=guide_legend(title="Job Title"))
+  mutate(COUNTRY_OF_CITIZENSHIP=str_to_title(COUNTRY_OF_CITIZENSHIP))%>%
+  left_join(GDP_perCap,by=c("COUNTRY_OF_CITIZENSHIP"="Country.Name"))%>%
+  filter(!is.na(FOREIGN_WORKER_INFO_EDUCATION))%>%
+  mutate(isSmall = ifelse(FOREIGN_WORKER_INFO_EDUCATION=='Doctorate',1,0))%>%
+  group_by(COUNTRY_OF_CITIZENSHIP,X2016)%>%
+  summarise(rDoc = mean(isSmall))%>%
+  left_join(world,by=c("COUNTRY_OF_CITIZENSHIP"="CNTRY_NAME"))%>%
+  distinct(COUNTRY_OF_CITIZENSHIP,X2016,rDoc,CAPLONG,CAPLAT)%>%
+  # delete the first row of another capital of Brazil to keep one row for each country
+  slice(1)
+
+ggplot(perm,aes(x=X2016/1000,y=rDoc))+
+  geom_point(aes(size=rDoc,color=X2016/1000),na.rm = T)+
+  #geom_point(color="red",x=15.534702,y=0.118563292,size=14)+
+  geom_text_repel(aes(label=COUNTRY_OF_CITIZENSHIP),na.rm = T)+
+  geom_smooth(method='lm',se = F,na.rm = T)+
+  scale_color_viridis(option = "magma")+
+  ylim(0,0.125)+
+  xlim(0,50)+
+  theme(
+         plot.title= element_text(size=11),
+         plot.subtitle = element_text(size=9),
+         plot.caption = element_text(size=8),
+         legend.position = "bottom",
+         legend.text = element_text(size=7),
+         legend.title = element_text(size=9)
+         
+         )+
+  labs(
+       title="The exceptionally high proportion of Permanent Visa applicants with Doctorate Degree from China in 2017",
+       subtitle="as Shown by the top 10 Countries with high US Permanent Visa applications",
+       x = "GDP per captial(thousand dollars)",
+       y = "proportion of applicants with Doctorate Degree",
+       caption = "Data Source: Employment & Training Administration of the U.S. Department of Labor",
+       color="GDP per captial\n(thousand dollars)",
+       size ="Proportion of PhD applicants")+
+       scale_size(range = c(2, 15))
+  
+```
+
+
+
+
+
+
+
+
+\pagebreak
+
+
+```{r boxplot, fig.width=12,fig.height=10,echo=F}
+
+h1b%>%
+  mutate(EMPLOYER = str_extract(EMPLOYER_NAME,'^[^ ]+'))%>%
+  filter(EMPLOYER %in% c("GOOGLE","FACEBOOK","AMAZON","LINKEDIN","MICROSOFT","IBM","WIPRO",
+                         "TATA","INFOSYS","DELOITTE") & !is.na(PREVAILING_WAGE))%>%
+  mutate(hightech = ifelse(EMPLOYER %in% c("GOOGLE","FACEBOOK","AMAZON","LINKEDIN","MICROSOFT"),"FLAG+Microsoft","largest H1B employers"))%>%
+  ggplot(aes(x=factor(EMPLOYER),y=PREVAILING_WAGE/1000),na.rm=T)+
+  geom_boxplot(aes(x=reorder(EMPLOYER,PREVAILING_WAGE,median),fill = hightech),na.rm = T,show.legend = T,alpha=0.5)+
+  scale_fill_manual(values = c("FLAG+Microsoft" = "#E74C3C","largest H1B employers"="#4682b4"))+
+  scale_y_continuous(labels=scales::comma,limits = c(0,250),breaks = 50*c(0:6))+
+  theme(
+                  #plot.background = element_rect(color="grey50",size=5),
+                  panel.background = element_rect(size=2),
+                  plot.title= element_text(size=15,vjust=3),
+                  plot.subtitle = element_text(size = 13,vjust=2),
+                  axis.title.x.bottom = element_text(size=13,margin = margin(t=20,r=0,b=20,l=0)),
+                  legend.title = element_text(size=12,vjust=1,margin = margin(10,10,10,10)), 
+                  legend.text = element_text(size=11,margin = margin(10,10,10,10)),
+                  legend.position = "top")+
+  labs(title = "Median wages offered by the 5 high-tech companies all exceed those of the 5 largest H1B employers (2011-2016)\n",
+       caption = "Data Source: Employment & Training Administration of the U.S. Department of Labor\n\n\n\n\n", 
+       x = "employer", y = "prevailing wage (thousand dollars)",
+       fill = "")+
+  theme(axis.text = element_text(size=11),
+        axis.title.y.left = element_text(margin = margin(t=0,r=10,b=0,l=5)))+
+  coord_flip()
+  
+
 ```
 
 
