@@ -71,25 +71,26 @@ perm<-permVisa %>%
 ```{r top10,fig.width=10, echo=F}
   ggplot(world)+
     geom_sf(fill="azure3",color='lightgrey')+
-    theme_void()+
-    geom_point(data = perm,aes(x=CAPLONG,y=CAPLAT,color=as.numeric(X2016)/1000,size=rDoc),alpha=0.5)+
-    geom_text_repel(data = perm, aes(x=CAPLONG,y=CAPLAT,label=COUNTRY_OF_CITIZENSHIP),size=3)+
-   
+ 
+    geom_point(data = perm,aes(x=CAPLONG,y=CAPLAT,color=as.numeric(X2016)/1000,size=rDoc*100),alpha=0.5,na.rm = T)+
+    geom_text_repel(data = perm, aes(x=CAPLONG,y=CAPLAT,label=COUNTRY_OF_CITIZENSHIP),na.rm =T,size=3)+
+    coord_sf(xlim=c(-100,140),expand =T)+
     scale_size(range = c(5, 15))+
+    theme_void()+
     theme(
          plot.title= element_text(size=11),
          plot.subtitle = element_text(size=9),
          plot.caption = element_text(size=8),
         legend.text = element_text(size=7),
         legend.title = element_text(size=9),
-        legend.position="bottom")+
+        legend.position="right")+
   labs(
        title="Wealthier countries have higher proportion of Permanent Visa applicants with Doctorate Degree for working in the US",
        subtitle="as shown by the top 20 countries with high US Permanent Visa applications (2017)",
        
        caption = "Data Source: Office of Foreign Labor Certificatio(OFLC), Employment & Training Administration of the U.S. Department of Labor",
        color="GDP per captial(thousand dollars)",
-       size ="Proportion of Applicants with Doctorate Degree")
+       size ="proportion of applicants \nwith Doctorate Degree (percentage)")
 
 
 ```
